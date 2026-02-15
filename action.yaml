@@ -37,7 +37,7 @@ runs:
         # 2. Otherwise, check the API
         echo "Checking registry for $NAME v$VERSION..."
         
-        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/$NAME/$VERSION")
+        HTTP_STATUS=$(curl -s -L -A "github-actions-conditional-publish" -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/$NAME/$VERSION")
         
         if [ "$HTTP_STATUS" -eq 200 ]; then
           echo "::notice::Crate $NAME v$VERSION already exists. Skipping publish."
