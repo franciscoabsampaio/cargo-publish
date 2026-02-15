@@ -1,0 +1,60 @@
+name: 'Conditional Rust Publish'
+description: 'Sets up Rust and publishes the crate only if the version does not already exist on crates.io'
+inputs:
+  registry-token:
+    description: 'The Cargo registry token'
+    required: true
+  crate-name:
+    description: 'The name of the crate'
+    required: true
+  crate-version:
+    description: 'The version of the crate to check and publish'
+    required: true
+  skip-existing:
+    description: 'If true, checks crates.io and skips publishing if version exists. If false, attempts to publish regardless.'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check if crate version exists on crates.io
+      id: check-version
+      shell: bash
+      run: |
+        NAME="${{ inputs.crate-name }}"
+        VERSION="${{ inputs.crate-version }}"
+        SKIP_EXISTING="${{ inputs.skip-existing }}"
+        
+        # 1. If skip-existing is explicitly false, we force "exists=false"
+        #    so the subsequent steps run (and potentially fail if it's a duplicate).
+        if [ "$SKIP_EXISTING" == "false" ]; then
+          echo "::notice::'skip-existing' is false. Skipping registry check and forcing publish attempt."
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # 2. Otherwise, check the API
+        echo "Checking registry for $NAME v$VERSION..."
+        
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/$NAME/$VERSION")
+        
+        if [ "$HTTP_STATUS" -eq 200 ]; then
+          echo "::notice::Crate $NAME v$VERSION already exists. Skipping publish."
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::notice::Crate $NAME v$VERSION not found. Proceeding with publish."
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Rust
+      if: steps.check-version.outputs.exists == 'false'
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Publish crate
+      if: steps.check-version.outputs.exists == 'false'
+      shell: bash
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ inputs.registry-token }}
+      run: |
+        cargo publish
