@@ -14,6 +14,10 @@ inputs:
     description: 'If true, checks crates.io and skips publishing if version exists. If false, attempts to publish regardless.'
     required: false
     default: 'true'
+  manifest-path:
+    description: 'Path to the crate''s Cargo.toml, relative to the caller''s repo root. Use when the crate is not at the repo root (e.g. workspace member). Forwarded to `cargo publish --manifest-path`.'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -56,5 +60,10 @@ runs:
       shell: bash
       env:
         CARGO_REGISTRY_TOKEN: ${{ inputs.registry-token }}
+        MANIFEST_PATH: ${{ inputs.manifest-path }}
       run: |
-        cargo publish
+        if [ -n "$MANIFEST_PATH" ]; then
+          cargo publish --manifest-path "$MANIFEST_PATH"
+        else
+          cargo publish
+        fi
